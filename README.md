@@ -58,6 +58,17 @@ $cd python-corebluetooth-sample
 $python corebluetooth_sample.py
 ~~~~
 
-# Author
+# See Also
+* [Python - Human Interface Device Android Attack Framework](https://github.com/SkiddieTech/HIDAAF)
+* [Creating a Simple BLE Scanner on iPhone](https://scribles.net/creating-a-simple-ble-scanner-on-iphone/)
+* [Adafruit - Connecting to a Peripheral](https://learn.adafruit.com/crack-the-code/connecting)
 
-[masato-ka](https://twitter.com/masato_ka)
+# Authors
+
+Original code by:
+* [@masato-ka](https://twitter.com/masato_ka)
+
+Rewrite by:
+* [simsong](https://github.com/simsong)
+
+
