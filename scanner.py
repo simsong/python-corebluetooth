@@ -16,7 +16,7 @@ import datetime
 wx2_service = CBUUID.UUIDWithString_(u'0C4C3000-7700-46F4-AA96-D5E974E32A54')
 wx2_characteristic_data = CBUUID.UUIDWithString_(u'0C4C3001-7700-46F4-AA96-D5E974E32A54')
 
-EXIT_COUNT = 5
+EXIT_COUNT = 0
 
 class MyBLE(object):
     def __init__(self,debug=False):
@@ -34,22 +34,35 @@ class MyBLE(object):
         self.count_advertisements += 1
         if self.debug:
             print('centralManager_didDiscoverPeripheral_advertisementData_RSSI_')
-        print("\n======== Advertisement {} t={} len={}  rssi={} =======".format(
+        print("\n======== Advertisement {} t={} len={}  Channel={} rssi={} =======".format(
             self.count_advertisements,
             datetime.datetime.now().isoformat(),
             len(data),
+            data.get(C.kCBAdvDataChannel,'??'),
             rssi))
+
+        ident = peripheral.identifier()
+        name  = peripheral.name()
+        if name is None:
+            name = ""
+        else:
+            name = "Name: " + name
+        print("SOURCE: {} {}" .format(ident, name))
 
         for prop in data.keys():
             if prop==C.kCBAdvDataChannel:
-                print("Channel: ",data[C.kCBAdvDataChannel])
+                continue
             elif prop==C.kCBAdvDataIsConnectable:
                 print("kCBAdvDataIsConnectable: ",data[C.kCBAdvDataIsConnectable])
             elif prop==C.kCBAdvDataManufacturerData:
                 obj = BTLEAdvClassifier( manuf_data = bytes( data[C.kCBAdvDataManufacturerData] ) )
                 print(obj.json(indent=5))
             else:
-                print(f"data[{prop}] = {data[prop]}")
+                try:
+                    for (key,val) in dict(data[prop]).items():
+                        print("kCBAdvDataManufacturerData {} = {}".format(key,val))
+                except Exception as e:
+                    print(f"data[{prop}] = {data[prop]}")
 
         if EXIT_COUNT==self.count_advertisements:
             exit(0)

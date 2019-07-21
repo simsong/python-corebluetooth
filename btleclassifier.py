@@ -132,7 +132,6 @@ class AppleTypeLengthRuns(AbstractContextManager):
                 ad_type = self.buf[self.pos]
                 ad_len  = self.buf[self.pos+1]
                 ad_data = self.buf[self.pos+2:self.pos+ad_len+2]
-                print("ad_data:",hexdump(ad_data))
                 self.pos += 2 + ad_len
                 yield (ad_type,ad_data)
             except IndexError as e:
@@ -255,16 +254,23 @@ class BTLEAdvClassifier():
             d['records'] = []
             with AppleTypeLengthRuns(man_data) as tr:
                 for (apple_type,apple_data) in tr.get_type_data():
-                    if apple_type==0x0e:
-                        record = {'type':'Instant Hotspot',
-                                  'Battery Life': apple_data[4],
-                                  'Cell Service': apple_data[6],
-                                  'Cell Bars': apple_data[7]}
-                    elif apple_type==0x0c:
+                    if apple_type==0x0c:
                         record = {'type':'Handoff Message',
                                   'Clipboard Status':apple_data[0],
                                   'Sequence Number':word16be(apple_data[1:3])
                                   }
+                    elif apple_type==0x0d:
+                        record = {'type':'Wi-Fi Settings',
+                                  'iCloud ID':apple_data[2:].hex()
+                                  }
+                    elif apple_type==0x0e:
+                        record = {'type':'Instant Hotspot',
+                                  'Battery Life': apple_data[4],
+                                  'Cell Service': apple_data[6],
+                                  'Cell Bars': apple_data[7]}
+                    elif apple_type==0x0f:
+                        record = {'type':'Wi-Fi Join Network',
+                                  'data':apple_data.hex()}
                     elif apple_type==0x10:
                         actionCode  = apple_data[0]& 0x0f
                         actionCodeText = {1:"iOS recently updated",
