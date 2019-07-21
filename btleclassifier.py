@@ -14,6 +14,9 @@ iBeacon format:
 https://support.kontakt.io/hc/en-gb/articles/201492492-iBeacon-advertising-packet-structure
 """
 
+def hexdump(s):
+    return " ".join([hex(ch)[2:] for ch in s])
+
 class BTLEAdvIDToken(object):
     """This isn't being used. Not sure what it's for."""
     def __init__(self, token_key):
@@ -92,8 +95,7 @@ def word16be(data):
     """return data[0] and data[1] as a 16-bit Big Ended Word"""
     return (data[1] << 8) | data[0]
 
-class LengthRuns():
-    """Returns a context manager"""
+class AbstractContextManager():
     def __init__(self, buf):
         assert type(buf)==bytes
         self.buf = buf
@@ -102,20 +104,37 @@ class LengthRuns():
         return self
     def __exit__(self, type, value, traceback):
         return
+
+class LengthRuns(AbstractContextManager):
+    """Given a buffer, return a series of (dtaa) fields. Assumes
+    that data contains a set of (length,data) fields. Used by BLE header."""
     def get_data(self, lensize=1):
         while self.pos < len(self.buf):
             try:
-                if lensize==1:
-                    ad_len  = self.buf[self.pos]
-                elif lensize==2:
-                    ad_len  = (self.buf[self.pos]<<8) | self.buf[self.pos+1]
-                elif lensize==-2:
-                    ad_len  = (self.buf[self.pos+1]<<8) | (self.buf[self.pos])
-                else:
-                    raise ValueError("Unknown length size (%d)" % lensize)
-                ad_data = self.buf[self.pos+1:ad_len+1]
-                self.pos += ad_len + 1
+                ad_len  = self.buf[self.pos]
+                ad_data = self.buf[self.pos+1:self.pos+ad_len+1]
+                self.pos += 1 + ad_len
                 yield ad_data
+            except IndexError as e:
+                pass
+    
+
+class AppleTypeLengthRuns(AbstractContextManager):
+    """Returns a context manager. Given a buffer, return a series of
+    (type,data) fields. Assumes that data contains a set of
+    (type,length,data) fields used by Apple, where (type) and (length)
+    are both unsigned 8-bit values.
+
+    """
+    def get_type_data(self, lensize=1):
+        while self.pos < len(self.buf):
+            try:
+                ad_type = self.buf[self.pos]
+                ad_len  = self.buf[self.pos+1]
+                ad_data = self.buf[self.pos+2:self.pos+ad_len+2]
+                print("ad_data:",hexdump(ad_data))
+                self.pos += 2 + ad_len
+                yield (ad_type,ad_data)
             except IndexError as e:
                 pass
 
@@ -123,9 +142,10 @@ class BTLEAdvClassifier():
     def __init__(self, adv_data):
         self.d      = {}
         self.d[HEX] =  adv_data.hex()
-        with LengthRuns(adv_data) as tr:
-            for data in tr.get_data():
-                self.parse_ad_structure(data)
+
+        with LengthRuns(adv_data) as lr:
+            for data in lr.get_data():
+                self.parse_ad_structure( data)
 
     def __repr__(self):
         return f"BTLEAdvClassifier<{self.d}>"
@@ -133,22 +153,23 @@ class BTLEAdvClassifier():
     def json(self,indent=None):
         return json.dumps(self.d,indent=indent)
 
+    def dict(self):
+        return self.d
+
     def parse_ad_structure(self, data):
-        try:
-            ad_type = data[0]
-            ad_data = data[1:]
-            if ad_type == 0x01:
-                self.d[FLAGS] = self.parse_ad_type_0x01(ad_data)
-            elif ad_type == 0x11:
-                self.d[SEC_MG_OOB_FLAGS] = self.parse_ad_type_0x11(ad_data)
-            elif ad_type == 0x16:
-                self.d[SERVICE_DATA] = self.parse_ad_type_0x16(ad_data)
-            elif ad_type == 0xff:
-                self.d[MANUFACTURER_SPECIFIC] = self.parse_ad_type_0xff(ad_data)
-            else:
-                self.d[UNKNOWN] = (ad_type, ad_data)
-        except ValueError:
-            pass
+        AD_TYPE_PARSERS = {
+            0x01: self.parse_ad_type_0x01,
+            0x11: self.parse_ad_type_0x11,
+            0x16: self.parse_ad_type_0x16,
+            0xff: self.parse_ad_type_0xff}
+
+
+        ad_type = data[0]
+        ad_data = data[1:]
+        if ad_type in AD_TYPE_PARSERS:
+            AD_TYPE_PARSERS[ad_type](ad_data)
+        else:
+            self.d[UNKNOWN] = {'type':ad_type, 'hex':ad_data.hex()}
 
     def parse_ad_type_0x01(self, data):
         """ Implementation of Bluetooth Specification Version 4.0 [Vol 3] Table 18.1: Flags
@@ -165,7 +186,7 @@ class BTLEAdvClassifier():
             ad_flags.append(FLAG_SLEBR)
         if val & 0x01<<4:
             ad_flags.append(FLAG_LEBRS)
-        return ad_flags
+        self.d[FLAGS] = ad_flags
 
     def parse_ad_type_0x11(self, data):
         """ Implementation of Bluetooth Specification Version 4.0 [Vol 3] 
@@ -185,7 +206,7 @@ class BTLEAdvClassifier():
             ad_flags.append( FLAG_RANDOM_ADDRESS )
         else:
             ad_flags.append( FLAG_PUBLIC_ADDRESS )
-        return ad_flags
+        self.d[SEC_MG_OOB_FLAGS] = ad_flags
 
     def parse_ad_type_0x16(self, data):
         """Implementation of Bluetooth Specification Version 4.0 [Vol 3]
@@ -194,7 +215,12 @@ class BTLEAdvClassifier():
         """
         service_uuid = word16be(data[0:2])
         service_data = data[2:] 
-        return (service_uuid, service_data)
+        self.d[SERVICE_DATA] = {'uuid':service_uuid, 'data':service_data}
+
+    COMPANY_ID_MAP = {
+        0x0006: 'Microsoft',
+        0x004c: 'Apple'
+    }
 
     APPLE_DATA_TYPES = {
         0x02: 'ibeacon',
@@ -215,29 +241,50 @@ class BTLEAdvClassifier():
         """
         # First 2 octets contain the 16 bit service UUID, flip bytes around
         company_id = word16be(data[0:2])
-        man_specific_data = data[2:] # additional service data
+
+        man_data = data[2:] 
 
         d = {}
-        d[COMPANY_ID] = company_id
-        d[COMPANY_HEX] = man_specific_data.hex()
-        if company_id == 0x0006:
-            d[COMPANY_NAME] = "Microsoft"
-        elif company_id == 0x004c:
-            d[COMPANY_NAME] = "Apple"
-            d[IBEACON] = (0x1502 == word16be(man_specific_data[0:2]))
-            with LengthRuns(man_specific_data) as tr:
-                for data in tr.get_data():
-                    apple_type = self.APPLE_DATA_TYPES.get(data[0],"(unknown)")
-                    apple_data = data[1:]
-        else:
-            d[COMPANY_NAME] = '??'
-        return d
+        d[COMPANY_ID]   = company_id
+        d[COMPANY_HEX]  = man_data.hex()
+        d[COMPANY_NAME] = self.COMPANY_ID_MAP.get(company_id,'??')
+        if d[COMPANY_NAME]=='Apple':
+            d['records'] = []
+            with AppleTypeLengthRuns(man_data) as tr:
+                for (apple_type,apple_data) in tr.get_type_data():
+                    if apple_type==0x0e:
+                        record = {'type':'Instant Hotspot',
+                                  'Battery Life': apple_data[4],
+                                  'Cell Service': apple_data[6],
+                                  'Cell Bars': apple_data[7]}
+                    elif apple_type==0x0c:
+                        record = {'type':'Handoff Message',
+                                  'Clipboard Status':apple_data[0],
+                                  'Sequence Number':word16be(apple_data[1:3])
+                                  }
+                    elif apple_type==0x10:
+                        actionCode  = apple_data[0]& 0x0f
+                        actionCodeText = {1:"iOS recently updated",
+                               3:"Locked Screen",
+                               7:"Transition Phase",
+                               10:"Locked Screen, Inform Apple Watch",
+                               11:"Active User",
+                               13:"Unknown",
+                               14:"Phone Call or Facetime"}.get(actionCode,'??')
+                        record = {'type': 'Nearby Message',
+                                  'Location Sharing' : apple_data[0]>>4,
+                                  'Action Code' : actionCode,
+                                  'Action Code Text' : actionCodeText}
+                    else:
+                        record = {'type' : hex(apple_type)}
+                    d['records'].append(record)
+        self.d[MANUFACTURER_SPECIFIC] = d
 
 if __name__ == "__main__":
     HEX_EXAMPLES = ["02011a0aff4c0010050b1c6d9072", 
                     "02011a1aff4c000c0e00750f812422021c3e213d190f3310050b1c6d9072"]
     for hexstr in HEX_EXAMPLES:
         print(hexstr)
-        data = codecs.decode(hexstr,"hex")
-        obj = BTLEAdvClassifier(data)
+        obj = BTLEAdvClassifier( codecs.decode(hexstr,"hex") )
         print(obj.json(indent=5))
+        print("-"*64)

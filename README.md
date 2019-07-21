@@ -8,55 +8,39 @@ Sample source for CoreBlutooth via PyObjC(Python)
  This sample source code is writing in how to implementation BLE application using python on OSX.
  It is using CoreBluetooth Library via [PyObjC](https://pythonhosted.org/pyobjc/).
  Target BLE device is [2JCIE-BL01 OMRON Enviroment sensor](http://www.omron.co.jp/ecb/products/sensor/special/environmentsensor/).
- The sensor provid some sensor data throw BLE interface.(see below table)
 
-|Sensor name|unit|
-|:----|:----|
-|Templature|degree celsius|
-|Humidity|%|
-|Air Pressure|hPa|
-|lumix|lux|
-|UV indicate|?|
-|Noise Level|dB|
+## Tested Version
 
-## Version
-
-Mac OSX 10.11.6
-Python 2.7.x
+Mac OSX 10.14.5
+Python 3.6 (Anaconda Distribution)
 
 ## License
 
 [MIT LICENCE](https://github.com/masato-ka/geo-hash-potate/blob/master/LICENSE.txt)
 
-
-
-# Build
+# Build and Run
 
 ##Install PyObjC
 
-Type below command on OSX
+You must install pyobjc first. You can try to install it using pip with:
 
-~~~~
-$pip install pyobjc
-~~~~
+    pip install pyobjc
 
-When you encount error about libffi, try below it.
+If that fails, you can install it from source downloaded with mecruial:
 
-~~~~
-$brew install pkg-config libffi
-$export PKG_CONFIG_PATH=/usr/local/Cellar/libffi/3.0.13/lib/pkgconfig/
-~~~~
+  $ hg clone https://bitbucket.org/ronaldoussoren/pyobjc
+  $ python3 pyobjc/install.py
 
-I recommend try in new enviroment what create using virtualenv. 
+Finally, you can download and install a pre-compiled verison from:
 
+* https://www.dropbox.com/sh/vkfzaa5m1snch8h/AABq4RTvbRl1fvVpHaGSoe0Ma?dl=0
 
 ##Run script
 
-~~~~
-$git clone https://github.com/masato-ka/python-corebluetooth-sample.git
-$cd python-corebluetooth-sample
-$python corebluetooth_sample.py
-~~~~
+```
+$ cd corebluetooth
+$ python corebluetooth_sample.py
+```
 
 # See Also
 * [Python - Human Interface Device Android Attack Framework](https://github.com/SkiddieTech/HIDAAF)
@@ -65,10 +49,8 @@ $python corebluetooth_sample.py
 
 # Authors
 
-Original code by:
-* [@masato-ka](https://twitter.com/masato_ka)
 
-Rewrite by:
-* [simsong](https://github.com/simsong)
+* Original code: [@masato-ka](https://twitter.com/masato_ka)
+* Rewrite by: [simsong](https://github.com/simsong)
 
 

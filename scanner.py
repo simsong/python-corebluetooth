@@ -10,15 +10,18 @@ from PyObjCTools import AppHelper
 from btleclassifier import BTLEAdvClassifier
 
 from constants import C
-print(C.kCBAdvDataIsConnectable)
+import btleclassifier
 
 wx2_service = CBUUID.UUIDWithString_(u'0C4C3000-7700-46F4-AA96-D5E974E32A54')
 wx2_characteristic_data = CBUUID.UUIDWithString_(u'0C4C3001-7700-46F4-AA96-D5E974E32A54')
+
+EXIT_COUNT = 5
 
 class MyBLE(object):
     def __init__(self,debug=False):
         self.seen = set()
         self.debug = debug
+        self.count_advertisements = 0
 
     def centralManagerDidUpdateState_(self, manager):
         if self.debug:
@@ -29,6 +32,10 @@ class MyBLE(object):
     def centralManager_didDiscoverPeripheral_advertisementData_RSSI_(self, manager, peripheral, data, rssi):
         if self.debug:
             print('centralManager_didDiscoverPeripheral_advertisementData_RSSI_')
+        self.count_advertisements += 1
+        if EXIT_COUNT==self.count_advertisements:
+            exit(0)
+
         seen = set(data.keys())
         if C.kCBAdvDataChannel in data:
             print("Channel: ",data[C.kCBAdvDataChannel], "RSSI:",rssi)
@@ -38,7 +45,10 @@ class MyBLE(object):
             seen.remove(C.kCBAdvDataIsConnectable)
         if C.kCBAdvDataManufacturerData in data:
             mdata = data[C.kCBAdvDataManufacturerData]
-            print("mdata:",mdata)
+            obj = BTLEAdvClassifier(bytes(mdata))
+            print(obj.dict())
+            print(obj.json(indent=5))
+            
             #print(BTLEAdvClassifier.parse_data(mdata))
             #seen.remove(C.kCBAdvDataManufacturerData)
         for prop in seen:
@@ -115,4 +125,10 @@ if "__main__" == __name__:
     
     central_manager = CBCentralManager.alloc()
     central_manager.initWithDelegate_queue_options_(MyBLE(debug=args.debug), None, None)
-    AppHelper.runConsoleEventLoop()
+    try:
+        AppHelper.runConsoleEventLoop()
+    except (KeyboardInterrupt, SystemExit) as e:
+        print(e)
+    except OC_PythonException as e:
+        print(e)
+        pass
