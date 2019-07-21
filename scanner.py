@@ -11,6 +11,7 @@ from btleclassifier import BTLEAdvClassifier
 
 from constants import C
 import btleclassifier
+import datetime
 
 wx2_service = CBUUID.UUIDWithString_(u'0C4C3000-7700-46F4-AA96-D5E974E32A54')
 wx2_characteristic_data = CBUUID.UUIDWithString_(u'0C4C3001-7700-46F4-AA96-D5E974E32A54')
@@ -30,30 +31,28 @@ class MyBLE(object):
         manager.scanForPeripheralsWithServices_options_(None,None)
 
     def centralManager_didDiscoverPeripheral_advertisementData_RSSI_(self, manager, peripheral, data, rssi):
+        self.count_advertisements += 1
         if self.debug:
             print('centralManager_didDiscoverPeripheral_advertisementData_RSSI_')
-        self.count_advertisements += 1
+        print("\n======== Advertisement {} t={} len={}  rssi={} =======".format(
+            self.count_advertisements,
+            datetime.datetime.now().isoformat(),
+            len(data),
+            rssi))
+
+        for prop in data.keys():
+            if prop==C.kCBAdvDataChannel:
+                print("Channel: ",data[C.kCBAdvDataChannel])
+            elif prop==C.kCBAdvDataIsConnectable:
+                print("kCBAdvDataIsConnectable: ",data[C.kCBAdvDataIsConnectable])
+            elif prop==C.kCBAdvDataManufacturerData:
+                obj = BTLEAdvClassifier( manuf_data = bytes( data[C.kCBAdvDataManufacturerData] ) )
+                print(obj.json(indent=5))
+            else:
+                print(f"data[{prop}] = {data[prop]}")
+
         if EXIT_COUNT==self.count_advertisements:
             exit(0)
-
-        seen = set(data.keys())
-        if C.kCBAdvDataChannel in data:
-            print("Channel: ",data[C.kCBAdvDataChannel], "RSSI:",rssi)
-            seen.remove(C.kCBAdvDataChannel)
-        if C.kCBAdvDataIsConnectable in data:
-            print("kCBAdvDataIsConnectable: ",data[C.kCBAdvDataIsConnectable])
-            seen.remove(C.kCBAdvDataIsConnectable)
-        if C.kCBAdvDataManufacturerData in data:
-            mdata = data[C.kCBAdvDataManufacturerData]
-            obj = BTLEAdvClassifier(bytes(mdata))
-            print(obj.dict())
-            print(obj.json(indent=5))
-            
-            #print(BTLEAdvClassifier.parse_data(mdata))
-            #seen.remove(C.kCBAdvDataManufacturerData)
-        for prop in seen:
-            print(f"data[{prop}] = {data[prop]}")
-        print("")
 
     def centralManager_didConnectPeripheral_(self, manager, peripheral):
         if self.debug:

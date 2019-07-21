@@ -139,13 +139,16 @@ class AppleTypeLengthRuns(AbstractContextManager):
                 pass
 
 class BTLEAdvClassifier():
-    def __init__(self, adv_data):
+    def __init__(self, adv_data = bytes(), manuf_data=bytes()):
         self.d      = {}
         self.d[HEX] =  adv_data.hex()
 
         with LengthRuns(adv_data) as lr:
             for data in lr.get_data():
                 self.parse_ad_structure( data)
+
+        if manuf_data:
+            self.parse_ad_type_0xff(manuf_data)
 
     def __repr__(self):
         return f"BTLEAdvClassifier<{self.d}>"
