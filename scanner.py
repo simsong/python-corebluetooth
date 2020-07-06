@@ -16,7 +16,7 @@ import datetime
 wx2_service = CBUUID.UUIDWithString_(u'0C4C3000-7700-46F4-AA96-D5E974E32A54')
 wx2_characteristic_data = CBUUID.UUIDWithString_(u'0C4C3001-7700-46F4-AA96-D5E974E32A54')
 
-EXIT_COUNT = 0
+EXIT_COUNT = 10
 
 class MyBLE(object):
     def __init__(self,debug=False):
@@ -43,29 +43,33 @@ class MyBLE(object):
 
         ident = peripheral.identifier()
         name  = peripheral.name()
-        if name is None:
-            name = ""
-        else:
-            name = "Name: " + name
-        print("SOURCE: {} {}" .format(ident, name))
-
-        for prop in data.keys():
-            if prop==C.kCBAdvDataChannel:
-                continue
-            elif prop==C.kCBAdvDataIsConnectable:
-                print("kCBAdvDataIsConnectable: ",data[C.kCBAdvDataIsConnectable])
-            elif prop==C.kCBAdvDataManufacturerData:
-                obj = BTLEAdvClassifier( manuf_data = bytes( data[C.kCBAdvDataManufacturerData] ) )
-                print(obj.json(indent=5))
+        try:
+            if name is None:
+                name = ""
             else:
-                try:
-                    for (key,val) in dict(data[prop]).items():
-                        print("kCBAdvDataManufacturerData {} = {}".format(key,val))
-                except Exception as e:
-                    print(f"data[{prop}] = {data[prop]}")
+                name = "Name: " + name
+            print("SOURCE: {} {}" .format(ident, name))
+
+            for prop in data.keys():
+                if prop==C.kCBAdvDataChannel:
+                    continue
+                elif prop==C.kCBAdvDataIsConnectable:
+                    print("kCBAdvDataIsConnectable: ",data[C.kCBAdvDataIsConnectable])
+                elif prop==C.kCBAdvDataManufacturerData:
+                    obj = BTLEAdvClassifier( manuf_data = bytes( data[C.kCBAdvDataManufacturerData] ) )
+                    print(obj.json(indent=5))
+                else:
+                    try:
+                        for (key,val) in dict(data[prop]).items():
+                            print("kCBAdvDataManufacturerData {} = {}".format(key,val))
+                    except Exception as e:
+                        print(f"data[{prop}] = {data[prop]}")
+
+        except Exception as e:
+            print("exception: ",e)
 
         if EXIT_COUNT==self.count_advertisements:
-            exit(0)
+            AppHelper.stopEventLoop()
 
     def centralManager_didConnectPeripheral_(self, manager, peripheral):
         if self.debug:
